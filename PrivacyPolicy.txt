@@ -1,0 +1,34 @@
+PRIVACY POLICY
+Last updated: July 05, 2026
+
+This Privacy Policy describes how the Photo Resizer mobile application (the "App") handles your information. We are committed to protecting your privacy and ensuring a secure experience.
+
+1. LOCAL PROCESSING OF MEDIA
+All core image processing activities—including loading, rotating, cropping, scaling, and compressing—are performed entirely locally and offline on your device:
+- No Media Transmission: Your photos, captured camera frames, and processed outputs are handled in-memory or saved directly inside your device's local cache or public pictures directories. They are never uploaded, streamed, or transmitted to remote servers.
+- No Personal Media Collection: We do not collect or store your images or any metadata associated with your files.
+
+2. INFORMATION WE COLLECT & THIRD-PARTY SERVICES
+To monitor app performance, improve stability, and deliver a better user experience, the App integrates reliable third-party diagnostic and analytical services:
+
+A. Firebase Analytics (Firebase Analyzer)
+- Purpose: Helps us understand user engagement patterns, which features are most popular, and general usage statistics.
+- Data Collected: Aggregated, non-personally identifiable metrics (such as active sessions, button click counts, screen transitions, and device model information). This data is anonymized.
+
+B. Firebase Crashlytics (Crash Analyzer)
+- Purpose: Helps us track, prioritize, and fix bugs and application crashes in real-time.
+- Data Collected: Diagnostic logs, stack traces, device state info (RAM, CPU architecture, OS version, and battery levels) captured at the time of an error or crash. No personal data or user images are included in these diagnostic packets.
+
+3. DEVICE PERMISSIONS
+To function correctly, the App requires certain permission permissions which you can grant or revoke at any time:
+- Camera: Used only when you choose to capture a new photo to resize or crop.
+- Media Storage / Photos Gallery: Used to select source images from your gallery and to write the resized, high-quality output images back to your system.
+
+4. DATA SECURITY
+We employ industry-standard security measures to safeguard any data transmitted by the telemetry frameworks. Since your actual media files never leave your device, your primary data remains under your absolute control at all times.
+
+5. CHANGES TO THIS POLICY
+We may update this Privacy Policy from time to time to reflect changes in our practices or legal obligations. We recommend reviewing this document periodically.
+
+6. CONTACT US
+If you have any questions or concerns regarding this Privacy Policy or the local storage practices of the App, please reach out to the developer directly.

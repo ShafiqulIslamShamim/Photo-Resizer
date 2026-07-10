@@ -1,0 +1,54 @@
+name: Compile, Format & Release Build
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+    branches: ["main", "master"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      
+    env:
+      PHOTO_RESIZER_SECRETS: ${{ secrets.PHOTO_RESIZER_SECRETS }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Generate Gradle Wrapper
+        run: |
+          chmod +x gradlew
+
+      - name: Apply Spotless Formatting
+        run: ./gradlew spotlessApply
+
+      - name: Commit formatting changes
+        uses: stefanzweifel/git-auto-commit-action@v6
+        with:
+          commit_message: "Apply Spotless formatting"
+
+      - name: Compile Debug APK
+        run: ./gradlew assembleDebug
+
+      - name: Upload Debug APK Artifact (CI Run)
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error

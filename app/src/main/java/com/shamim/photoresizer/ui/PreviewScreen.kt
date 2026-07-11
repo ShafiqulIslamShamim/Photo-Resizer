@@ -81,6 +81,9 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import coil.compose.rememberAsyncImagePainter
 import com.shamim.photoresizer.Util
 import com.shamim.photoresizer.ViewModel
@@ -120,13 +123,37 @@ fun PreviewScreen(
     // Selected format for saving the processed image
     var selectedFormat by remember { mutableStateOf("JPG") }
 
+    var displaySavedBytes by remember { mutableStateOf(savedBytes) }
+
+    LaunchedEffect(processedBmp, selectedFormat) {
+        val bmp = processedBmp ?: return@LaunchedEffect
+        withContext(Dispatchers.IO) {
+            val sizeLimitKb = if (!viewModel.isAutoCompress && viewModel.sizeLimitInput.isNotBlank()) {
+                val inputNum = viewModel.sizeLimitInput.toIntOrNull()
+                if (inputNum != null && inputNum > 0) {
+                    if (viewModel.sizeLimitUnit == "MB") inputNum * 1024 else inputNum
+                } else null
+            } else null
+
+            val bytes = Util.compressBitmapToBytes(
+                bitmap = bmp,
+                quality = 90,
+                formatStr = selectedFormat,
+                sizeLimitKb = sizeLimitKb
+            )
+            withContext(Dispatchers.Main) {
+                displaySavedBytes = bytes.size.toLong()
+            }
+        }
+    }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
                 navigationIcon = {
                     IconButton(
-                        onClick = { viewModel.reset() },
+                        onClick = { viewModel.backToConfigure() },
                         modifier =
                             Modifier
                                 .background(MaterialTheme.colorScheme.surface, CircleShape)
@@ -171,7 +198,7 @@ fun PreviewScreen(
                     val savingPct =
                         if (originalMeta.sizeBytes > 0) {
                             val factor =
-                                (originalMeta.sizeBytes - savedBytes).toFloat() / originalMeta.sizeBytes
+                                (originalMeta.sizeBytes - displaySavedBytes).toFloat() / originalMeta.sizeBytes
                             (factor * 100).toInt().coerceIn(0, 100)
                         } else {
                             0
@@ -207,7 +234,7 @@ fun PreviewScreen(
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text =
-                                        "Compressed ${Util.formatFileSize(originalMeta.sizeBytes)} to ${Util.formatFileSize(savedBytes)}",
+                                        "Compressed ${Util.formatFileSize(originalMeta.sizeBytes)} to ${Util.formatFileSize(displaySavedBytes)}",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -295,7 +322,7 @@ fun PreviewScreen(
                                         originalUri = originalMeta.uri,
                                         processedBmp = processedBmp,
                                         originalSize = originalMeta.sizeBytes,
-                                        processedSize = savedBytes,
+                                        processedSize = displaySavedBytes,
                                     )
                                 }
 
@@ -336,7 +363,7 @@ fun PreviewScreen(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                     Text(
-                                        text = Util.formatFileSize(savedBytes),
+                                        text = Util.formatFileSize(displaySavedBytes),
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.primary,
@@ -404,13 +431,26 @@ fun PreviewScreen(
                     // Expose export and save options
                     Button(
                         onClick = {
+                            val bmp = processedBmp
+                            if (bmp == null) {
+                                Toast.makeText(context, "No processed image found to save", Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
+
+                            val sizeLimitKb = if (!viewModel.isAutoCompress && viewModel.sizeLimitInput.isNotBlank()) {
+                                val inputNum = viewModel.sizeLimitInput.toIntOrNull()
+                                if (inputNum != null && inputNum > 0) {
+                                    if (viewModel.sizeLimitUnit == "MB") inputNum * 1024 else inputNum
+                                } else null
+                            } else null
+
                             val savedUri =
                                 Util.saveBitmapToPublicStorage(
                                     context = context,
-                                    bitmap = processedBmp,
+                                    bitmap = bmp,
                                     quality = 90,
                                     formatStr = selectedFormat,
-                                    sizeLimitKb = null,
+                                    sizeLimitKb = sizeLimitKb,
                                 )
                             if (savedUri != null) {
                                 Toast

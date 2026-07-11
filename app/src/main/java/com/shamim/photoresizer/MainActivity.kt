@@ -193,7 +193,7 @@ fun PhotoResizerApp() {
 
             is ScreenState.Preview -> {
                 BackHandler {
-                    viewModel.reset()
+                    viewModel.backToConfigure()
                 }
                 PreviewScreen(
                     viewModel = viewModel,

@@ -122,6 +122,119 @@ object Util {
      * recursively compresses or downscales the image to stay below the limit.
      * @return Output media Uri if saved successfully, null otherwise.
      */
+    /**
+     * Compresses, scales, and limits the size of a Bitmap to meet a given file size limit (if specified) and output format.
+     *
+     * @param bitmap Source bitmap to compress.
+     * @param quality Quality percentage of compression.
+     * @param formatStr Export file format ("JPG", "PNG", or "WEBP").
+     * @param sizeLimitKb Optional file size target limit in Kilobytes.
+     * @return Compressed byte array.
+     */
+    fun compressBitmapToBytes(
+        bitmap: Bitmap,
+        quality: Int = 90,
+        formatStr: String = "JPG",
+        sizeLimitKb: Int? = null,
+    ): ByteArray {
+        val isLossy = when (formatStr.uppercase()) {
+            "PNG" -> false
+            "WEBP" -> {
+                // If a size limit is specified, use WEBP_LOSSY on Android R+ or lossy WEBP in pre-R so we can compress
+                sizeLimitKb != null && sizeLimitKb > 0
+            }
+            else -> true
+        }
+
+        val format = when (formatStr.uppercase()) {
+            "PNG" -> Bitmap.CompressFormat.PNG
+            "WEBP" -> {
+                if (isLossy) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        Bitmap.CompressFormat.WEBP_LOSSY
+                    } else {
+                        @Suppress("DEPRECATION")
+                        Bitmap.CompressFormat.WEBP
+                    }
+                } else {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        Bitmap.CompressFormat.WEBP_LOSSLESS
+                    } else {
+                        @Suppress("DEPRECATION")
+                        Bitmap.CompressFormat.WEBP
+                    }
+                }
+            }
+            else -> Bitmap.CompressFormat.JPEG
+        }
+
+        var tempBytes: ByteArray
+        if (sizeLimitKb != null && sizeLimitKb > 0) {
+            val limitBytes = sizeLimitKb * 1024
+            var streamSize = 0
+            var finalBytes = ByteArray(0)
+
+            if (isLossy) {
+                // Iterative search for quality configuration conforming to KB target
+                var currentQuality = quality
+                do {
+                    val baos = ByteArrayOutputStream()
+                    bitmap.compress(format, currentQuality, baos)
+                    finalBytes = baos.toByteArray()
+                    streamSize = finalBytes.size
+                    currentQuality -= 10
+                } while (streamSize > limitBytes && currentQuality >= 15)
+            } else {
+                // Lossless formats (PNG, lossless WEBP): quality has no effect, compress once
+                val baos = ByteArrayOutputStream()
+                bitmap.compress(format, 100, baos)
+                finalBytes = baos.toByteArray()
+                streamSize = finalBytes.size
+            }
+
+            // Progressive dimensions downscale if quality reduction alone fails
+            if (streamSize > limitBytes) {
+                var scale = 0.9f
+                var currentBmp: Bitmap? = null
+                while (streamSize > limitBytes && scale > 0.05f) {
+                    val sW = (bitmap.width * scale).toInt().coerceAtLeast(1)
+                    val sH = (bitmap.height * scale).toInt().coerceAtLeast(1)
+                    val nextBmp = Bitmap.createScaledBitmap(bitmap, sW, sH, true)
+                    
+                    val baos = ByteArrayOutputStream()
+                    nextBmp.compress(format, if (isLossy) 70 else 100, baos)
+                    finalBytes = baos.toByteArray()
+                    streamSize = finalBytes.size
+                    
+                    currentBmp?.recycle()
+                    currentBmp = nextBmp
+                    scale -= 0.1f
+                }
+                currentBmp?.recycle()
+            }
+            tempBytes = finalBytes
+        } else {
+            // Auto mode: preserve high quality compression without size reduction
+            val baos = ByteArrayOutputStream()
+            bitmap.compress(format, quality, baos)
+            tempBytes = baos.toByteArray()
+        }
+
+        return tempBytes
+    }
+
+    /**
+     * Compresses, scales, limits size if target limit specified, and writes the processed Bitmap to
+     * public system storage under the "Pictures/Photo-Resizer" directory using MediaStore API.
+     *
+     * @param context Application/Activity context.
+     * @param bitmap Source bitmap to save.
+     * @param quality Quality percentage of compression.
+     * @param formatStr Export file format ("JPG", "PNG", or "WEBP").
+     * @param sizeLimitKb Optional file size target limit in Kilobytes. If specified, the helper
+     * recursively compresses or downscales the image to stay below the limit.
+     * @return Output media Uri if saved successfully, null otherwise.
+     */
     fun saveBitmapToPublicStorage(
         context: Context,
         bitmap: Bitmap,
@@ -135,20 +248,6 @@ object Util {
                 "PNG" -> "image/png"
                 "WEBP" -> "image/webp"
                 else -> "image/jpeg"
-            }
-
-        val format =
-            when (formatStr.uppercase()) {
-                "PNG" -> Bitmap.CompressFormat.PNG
-                "WEBP" -> {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        Bitmap.CompressFormat.WEBP_LOSSLESS
-                    } else {
-                        @Suppress("DEPRECATION")
-                        Bitmap.CompressFormat.WEBP
-                    }
-                }
-                else -> Bitmap.CompressFormat.JPEG
             }
 
         val actualExt = if (ext == "jpeg") "jpg" else ext
@@ -169,45 +268,7 @@ object Util {
 
         return try {
             resolver.openOutputStream(targetUri)?.use { stream ->
-                val rawBytes: ByteArray
-                if (sizeLimitKb != null && sizeLimitKb > 0) {
-                    // Iterative search for quality configuration conforming to KB target
-                    var currentQuality = quality
-                    var tempBytes = ByteArray(0)
-                    val limitBytes = sizeLimitKb * 1024
-                    var streamSize = 0
-
-                    do {
-                        val baos = ByteArrayOutputStream()
-                        bitmap.compress(format, currentQuality, baos)
-                        tempBytes = baos.toByteArray()
-                        streamSize = tempBytes.size
-                        currentQuality -= 10
-                    } while (streamSize > limitBytes && currentQuality >= 15)
-
-                    // Progressive dimensions downscale if quality reduction alone fails
-                    if (streamSize > limitBytes) {
-                        var scale = 0.9f
-                        var secondaryBmp = bitmap
-                        while (streamSize > limitBytes && scale > 0.15f) {
-                            val sW = (bitmap.width * scale).toInt().coerceAtLeast(1)
-                            val sH = (bitmap.height * scale).toInt().coerceAtLeast(1)
-                            secondaryBmp = Bitmap.createScaledBitmap(bitmap, sW, sH, true)
-                            val baos = ByteArrayOutputStream()
-                            secondaryBmp.compress(format, 70, baos)
-                            tempBytes = baos.toByteArray()
-                            streamSize = tempBytes.size
-                            scale -= 0.1f
-                        }
-                    }
-                    rawBytes = tempBytes
-                } else {
-                    // Auto mode: preserve high quality compression without size reduction
-                    val baos = ByteArrayOutputStream()
-                    bitmap.compress(format, quality, baos)
-                    rawBytes = baos.toByteArray()
-                }
-
+                val rawBytes = compressBitmapToBytes(bitmap, quality, formatStr, sizeLimitKb)
                 stream.write(rawBytes)
             }
 

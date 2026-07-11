@@ -52,6 +52,13 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -61,6 +68,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.rememberAsyncImagePainter
@@ -88,6 +96,8 @@ fun ConfigureScreen(
     val context = LocalContext.current
     val meta = viewModel.originalMetadata
     val scrollState = rememberScrollState()
+
+    var activeConfigSegment by rememberSaveable { mutableStateOf("Custom Size") }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -224,110 +234,234 @@ fun ConfigureScreen(
                         }
                     }
 
-                    // Aspect presets
+                    // Main Segmented Selector
                     Text(
-                        text = "Preset Aspect Ratio Lock",
+                        text = "Resolution Mode",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(vertical = 8.dp),
+                        modifier = Modifier.padding(top = 8.dp, bottom = 8.dp),
                     )
 
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 16.dp)
+                            .background(
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                shape = RoundedCornerShape(14.dp),
+                            ).padding(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        val presets = listOf("Original", "1:1", "4:3", "16:9")
-                        presets.forEach { preset ->
-                            val isSelected = viewModel.selectedPresetRatio == preset
+                        val segments = listOf("Custom Size", "Preset Size", "Aspect Ratio")
+                        segments.forEach { segment ->
+                            val isSelected = activeConfigSegment == segment
                             Box(
-                                modifier =
-                                    Modifier
-                                        .weight(1f)
-                                        .height(44.dp)
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(
-                                            if (isSelected) {
-                                                MaterialTheme.colorScheme.primary
-                                            } else {
-                                                MaterialTheme.colorScheme.surface
-                                            },
-                                        ).border(
-                                            1.dp,
-                                            if (isSelected) {
-                                                Color.Transparent
-                                            } else {
-                                                MaterialTheme.colorScheme.outlineVariant
-                                            },
-                                            RoundedCornerShape(10.dp),
-                                        ).clickable { viewModel.selectPreset(preset) },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(40.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(
+                                        if (isSelected) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            Color.Transparent
+                                        },
+                                    ).clickable { 
+                                        activeConfigSegment = segment
+                                        if (segment == "Aspect Ratio") {
+                                            viewModel.selectPreset(viewModel.selectedPresetRatio)
+                                        } else if (segment == "Preset Size") {
+                                            if (viewModel.selectedPresetSize != "None") {
+                                                viewModel.selectPresetSize(viewModel.selectedPresetSize)
+                                            }
+                                        }
+                                    },
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Text(
-                                    text = preset,
-                                    fontSize = 12.sp,
+                                    text = segment,
+                                    fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color =
-                                        if (isSelected) {
-                                            MaterialTheme.colorScheme.onPrimary
-                                        } else {
-                                            MaterialTheme.colorScheme.onSurface
-                                        },
+                                    color = if (isSelected) {
+                                        MaterialTheme.colorScheme.onPrimary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
+                                    textAlign = TextAlign.Center
                                 )
                             }
                         }
                     }
 
-                    // Custom target resolution textfields
-                    Text(
-                        text = "Override Target Resolution (Pixels)",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(bottom = 8.dp),
-                    )
+                    Spacer(modifier = Modifier.height(4.dp))
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    ) {
-                        OutlinedTextField(
-                            value = viewModel.targetWidthInput,
-                            onValueChange = {
-                                viewModel.targetWidthInput = it.filter { ch -> ch.isDigit() }
-                                // Clear ratio state if manually customized details
-                                viewModel.selectedPresetRatio = "Custom"
-                            },
-                            modifier = Modifier.weight(1f).testTag("target_width_field"),
-                            label = { Text("Width (px)") },
-                            singleLine = true,
-                            shape = RoundedCornerShape(24.dp),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            colors =
-                                OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                                ),
-                        )
+                    @OptIn(ExperimentalLayoutApi::class)
+                    when (activeConfigSegment) {
+                        "Custom Size" -> {
+                            // Custom target resolution textfields
+                            Text(
+                                text = "Override Target Resolution (Pixels)",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(bottom = 8.dp),
+                            )
 
-                        OutlinedTextField(
-                            value = viewModel.targetHeightInput,
-                            onValueChange = {
-                                viewModel.targetHeightInput = it.filter { ch -> ch.isDigit() }
-                                // Clear ratio state
-                                viewModel.selectedPresetRatio = "Custom"
-                            },
-                            modifier = Modifier.weight(1f).testTag("target_height_field"),
-                            label = { Text("Height (px)") },
-                            singleLine = true,
-                            shape = RoundedCornerShape(24.dp),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            colors =
-                                OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                                ),
-                        )
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            ) {
+                                OutlinedTextField(
+                                    value = viewModel.targetWidthInput,
+                                    onValueChange = {
+                                        viewModel.targetWidthInput = it.filter { ch -> ch.isDigit() }
+                                        viewModel.selectedPresetRatio = "Custom"
+                                        viewModel.selectedPresetSize = "None"
+                                    },
+                                    modifier = Modifier.weight(1f).testTag("target_width_field"),
+                                    label = { Text("Width (px)") },
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(24.dp),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                    ),
+                                )
+
+                                OutlinedTextField(
+                                    value = viewModel.targetHeightInput,
+                                    onValueChange = {
+                                        viewModel.targetHeightInput = it.filter { ch -> ch.isDigit() }
+                                        viewModel.selectedPresetRatio = "Custom"
+                                        viewModel.selectedPresetSize = "None"
+                                    },
+                                    modifier = Modifier.weight(1f).testTag("target_height_field"),
+                                    label = { Text("Height (px)") },
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(24.dp),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                    ),
+                                )
+                            }
+                        }
+
+                        "Preset Size" -> {
+                            // Preset Size Selector
+                            Text(
+                                text = "Standard Document Preset Sizes",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(bottom = 8.dp),
+                            )
+
+                            FlowRow(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 16.dp)
+                                    .background(
+                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                        shape = RoundedCornerShape(14.dp),
+                                    ).padding(6.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                val sizePresets = listOf(
+                                    "None",
+                                    "Passport (2×2\")",
+                                    "Passport (35×45 mm)",
+                                    "Visa (US)",
+                                    "ID Card (CR80)",
+                                    "Stamp (25×35 mm)"
+                                )
+                                sizePresets.forEach { preset ->
+                                    val isSelected = viewModel.selectedPresetSize == preset
+                                    Box(
+                                        modifier = Modifier
+                                            .height(38.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(
+                                                if (isSelected) {
+                                                    MaterialTheme.colorScheme.primary
+                                                } else {
+                                                    Color.Transparent
+                                                },
+                                            ).clickable { viewModel.selectPresetSize(preset) }
+                                            .padding(horizontal = 14.dp),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Text(
+                                            text = preset,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isSelected) {
+                                                MaterialTheme.colorScheme.onPrimary
+                                            } else {
+                                                MaterialTheme.colorScheme.onSurfaceVariant
+                                            },
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        "Aspect Ratio" -> {
+                            // Aspect Ratio Selector
+                            Text(
+                                text = "Aspect Ratio",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(bottom = 8.dp),
+                            )
+
+                            FlowRow(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 16.dp)
+                                    .background(
+                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                        shape = RoundedCornerShape(14.dp),
+                                    ).padding(6.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                val aspectPresets = listOf("Original", "1:1", "4:3", "16:9", "9:16", "2:3", "3:2", "21:9")
+                                aspectPresets.forEach { preset ->
+                                    val isSelected = viewModel.selectedPresetRatio == preset
+                                    Box(
+                                        modifier = Modifier
+                                            .height(38.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(
+                                                if (isSelected) {
+                                                    MaterialTheme.colorScheme.primary
+                                                } else {
+                                                    Color.Transparent
+                                                },
+                                            ).clickable { viewModel.selectPreset(preset) }
+                                            .padding(horizontal = 14.dp),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Text(
+                                            text = preset,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isSelected) {
+                                                MaterialTheme.colorScheme.onPrimary
+                                            } else {
+                                                MaterialTheme.colorScheme.onSurfaceVariant
+                                            },
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
 
                     // Size limit textfield title and picker

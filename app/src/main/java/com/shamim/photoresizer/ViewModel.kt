@@ -55,6 +55,7 @@ class ViewModel : androidx.lifecycle.ViewModel() {
 
     // Aspect ratio selected preset
     var selectedPresetRatio by mutableStateOf("Original")
+    var selectedPresetSize by mutableStateOf("None")
 
     // Processed result reference state
     var processedBitmap by mutableStateOf<Bitmap?>(null)
@@ -78,7 +79,15 @@ class ViewModel : androidx.lifecycle.ViewModel() {
         sizeLimitInput = ""
         sizeLimitUnit = "KB"
         selectedPresetRatio = "Original"
+        selectedPresetSize = "None"
         _screenState.value = ScreenState.Welcome
+    }
+
+    /**
+     * Navigates back to the configure screen.
+     */
+    fun backToConfigure() {
+        _screenState.value = ScreenState.Configure
     }
 
     /**
@@ -130,6 +139,7 @@ class ViewModel : androidx.lifecycle.ViewModel() {
      */
     fun selectPreset(ratioName: String) {
         selectedPresetRatio = ratioName
+        selectedPresetSize = "None"
         val meta = originalMetadata ?: return
         val currentW = meta.width
         val currentH = meta.height
@@ -155,6 +165,66 @@ class ViewModel : androidx.lifecycle.ViewModel() {
                 val targetH = (currentW * 9) / 16
                 targetWidthInput = currentW.toString()
                 targetHeightInput = targetH.toString()
+            }
+
+            "9:16" -> {
+                val targetH = (currentW * 16) / 9
+                targetWidthInput = currentW.toString()
+                targetHeightInput = targetH.toString()
+            }
+
+            "2:3" -> {
+                val targetH = (currentW * 3) / 2
+                targetWidthInput = currentW.toString()
+                targetHeightInput = targetH.toString()
+            }
+
+            "3:2" -> {
+                val targetH = (currentW * 2) / 3
+                targetWidthInput = currentW.toString()
+                targetHeightInput = targetH.toString()
+            }
+
+            "21:9" -> {
+                val targetH = (currentW * 9) / 21
+                targetWidthInput = currentW.toString()
+                targetHeightInput = targetH.toString()
+            }
+        }
+    }
+
+    /**
+     * Selects a standard document/photo preset size and updates
+     * the target width/height inputs in pixels.
+     *
+     * @param presetName The name of the standard preset size.
+     */
+    fun selectPresetSize(presetName: String) {
+        selectedPresetSize = presetName
+        selectedPresetRatio = "Custom"
+        if (presetName == "None") {
+            return
+        }
+        when (presetName) {
+            "Passport (2×2\")" -> {
+                targetWidthInput = "600"
+                targetHeightInput = "600"
+            }
+            "Passport (35×45 mm)" -> {
+                targetWidthInput = "413"
+                targetHeightInput = "531"
+            }
+            "Visa (US)" -> {
+                targetWidthInput = "600"
+                targetHeightInput = "600"
+            }
+            "ID Card (CR80)" -> {
+                targetWidthInput = "1013"
+                targetHeightInput = "638"
+            }
+            "Stamp (25×35 mm)" -> {
+                targetWidthInput = "295"
+                targetHeightInput = "413"
             }
         }
     }

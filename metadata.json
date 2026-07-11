@@ -1,0 +1,6 @@
+{
+  "name": "Photo Resizer",
+  "description": "A fast, privacy-preserving offline image resizer, compressor, and format converter with custom dimensions, aspect ratios, standard document sizes, and ambient seasonal particle effects.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

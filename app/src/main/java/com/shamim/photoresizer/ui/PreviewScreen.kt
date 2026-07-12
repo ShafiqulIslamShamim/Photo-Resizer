@@ -306,7 +306,7 @@ fun PreviewScreen(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         shape = RoundedCornerShape(20.dp),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             when (selectedCompareMode) {
@@ -379,7 +379,7 @@ fun PreviewScreen(
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(top = 8.dp, bottom = 8.dp),
+                        modifier = Modifier.padding(top = 4.dp, bottom = 6.dp),
                     )
 
                     // Dynamic segment format picker

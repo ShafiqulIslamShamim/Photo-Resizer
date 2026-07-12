@@ -372,12 +372,17 @@ fun ConfigureScreen(
                                 verticalArrangement = Arrangement.spacedBy(6.dp),
                             ) {
                                 val sizePresets = listOf(
-                                    "None",
-                                    "Passport (2×2\")",
-                                    "Passport (35×45 mm)",
-                                    "Visa (US)",
-                                    "ID Card (CR80)",
-                                    "Stamp (25×35 mm)"
+                                    "25 × 30 mm",
+                                    "25 × 35 mm",
+                                    "30 × 40 mm",
+                                    "30 × 45 mm",
+                                    "33 × 48 mm",
+                                    "35 × 45 mm",
+                                    "40 × 50 mm",
+                                    "45 × 45 mm",
+                                    "50 × 50 mm",
+                                    "51 × 51 mm",
+                                    "Custom preset"
                                 )
                                 sizePresets.forEach { preset ->
                                     val isSelected = viewModel.selectedPresetSize == preset
@@ -406,6 +411,49 @@ fun ConfigureScreen(
                                             },
                                         )
                                     }
+                                }
+                            }
+
+                            if (viewModel.selectedPresetSize == "Custom preset") {
+                                Text(
+                                    text = "Custom Preset Size (Millimeters)",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.padding(bottom = 8.dp),
+                                )
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                ) {
+                                    OutlinedTextField(
+                                        value = viewModel.customMmWidth,
+                                        onValueChange = { viewModel.updateCustomMmWidth(it) },
+                                        modifier = Modifier.weight(1f).testTag("custom_mm_width_field"),
+                                        label = { Text("Width (mm)") },
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(24.dp),
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                        ),
+                                    )
+
+                                    OutlinedTextField(
+                                        value = viewModel.customMmHeight,
+                                        onValueChange = { viewModel.updateCustomMmHeight(it) },
+                                        modifier = Modifier.weight(1f).testTag("custom_mm_height_field"),
+                                        label = { Text("Height (mm)") },
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(24.dp),
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                        ),
+                                    )
                                 }
                             }
                         }

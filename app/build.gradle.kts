@@ -56,8 +56,8 @@ android {
         applicationId = "com.shamim.photoresizer"
         minSdk = 24
         targetSdk = 36
-        versionCode = 5
-        versionName = "1.5"
+        versionCode = 8
+        versionName = "1.8"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -141,6 +141,8 @@ dependencies {
     implementation(libs.retrofit)
     implementation(libs.play.app.update)
     implementation(libs.play.app.update.ktx)
+    implementation(libs.androidx.fragment)
+    implementation(libs.androidx.fragment.ktx)
 
     testImplementation(libs.androidx.compose.ui.test.junit4)
     testImplementation(libs.androidx.core)

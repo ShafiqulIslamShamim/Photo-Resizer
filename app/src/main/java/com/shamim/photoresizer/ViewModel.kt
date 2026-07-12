@@ -57,6 +57,30 @@ class ViewModel : androidx.lifecycle.ViewModel() {
     var selectedPresetRatio by mutableStateOf("Original")
     var selectedPresetSize by mutableStateOf("None")
 
+    // Custom mm state properties for Custom preset size
+    var customMmWidth by mutableStateOf("")
+    var customMmHeight by mutableStateOf("")
+
+    fun updateCustomMmWidth(mmStr: String) {
+        customMmWidth = mmStr.filter { it.isDigit() || it == '.' }
+        val mm = customMmWidth.toDoubleOrNull()
+        if (mm != null) {
+            targetWidthInput = Math.round(mm * 300.0 / 25.4).toLong().toString()
+        } else {
+            targetWidthInput = ""
+        }
+    }
+
+    fun updateCustomMmHeight(mmStr: String) {
+        customMmHeight = mmStr.filter { it.isDigit() || it == '.' }
+        val mm = customMmHeight.toDoubleOrNull()
+        if (mm != null) {
+            targetHeightInput = Math.round(mm * 300.0 / 25.4).toLong().toString()
+        } else {
+            targetHeightInput = ""
+        }
+    }
+
     // Processed result reference state
     var processedBitmap by mutableStateOf<Bitmap?>(null)
         private set
@@ -80,6 +104,8 @@ class ViewModel : androidx.lifecycle.ViewModel() {
         sizeLimitUnit = "KB"
         selectedPresetRatio = "Original"
         selectedPresetSize = "None"
+        customMmWidth = ""
+        customMmHeight = ""
         _screenState.value = ScreenState.Welcome
     }
 
@@ -206,25 +232,49 @@ class ViewModel : androidx.lifecycle.ViewModel() {
             return
         }
         when (presetName) {
-            "Passport (2×2\")" -> {
-                targetWidthInput = "600"
-                targetHeightInput = "600"
+            "25 × 30 mm" -> {
+                targetWidthInput = "295"
+                targetHeightInput = "354"
             }
-            "Passport (35×45 mm)" -> {
+            "25 × 35 mm" -> {
+                targetWidthInput = "295"
+                targetHeightInput = "413"
+            }
+            "30 × 40 mm" -> {
+                targetWidthInput = "354"
+                targetHeightInput = "472"
+            }
+            "30 × 45 mm" -> {
+                targetWidthInput = "354"
+                targetHeightInput = "531"
+            }
+            "33 × 48 mm" -> {
+                targetWidthInput = "390"
+                targetHeightInput = "567"
+            }
+            "35 × 45 mm" -> {
                 targetWidthInput = "413"
                 targetHeightInput = "531"
             }
-            "Visa (US)" -> {
-                targetWidthInput = "600"
-                targetHeightInput = "600"
+            "40 × 50 mm" -> {
+                targetWidthInput = "472"
+                targetHeightInput = "591"
             }
-            "ID Card (CR80)" -> {
-                targetWidthInput = "1013"
-                targetHeightInput = "638"
+            "45 × 45 mm" -> {
+                targetWidthInput = "531"
+                targetHeightInput = "531"
             }
-            "Stamp (25×35 mm)" -> {
-                targetWidthInput = "295"
-                targetHeightInput = "413"
+            "50 × 50 mm" -> {
+                targetWidthInput = "591"
+                targetHeightInput = "591"
+            }
+            "51 × 51 mm" -> {
+                targetWidthInput = "602"
+                targetHeightInput = "602"
+            }
+            "Custom preset" -> {
+                updateCustomMmWidth(customMmWidth)
+                updateCustomMmHeight(customMmHeight)
             }
         }
     }

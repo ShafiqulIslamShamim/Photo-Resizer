@@ -121,7 +121,8 @@ fun PreviewScreen(
     // Backwards-compatible single toggle state
     var showActiveAfterState by remember { mutableStateOf(true) }
     // Selected format for saving the processed image
-    var selectedFormat by remember { mutableStateOf("JPG") }
+    val importedFormat = viewModel.originalMetadata?.format ?: "JPG"
+    var selectedFormat by remember(importedFormat) { mutableStateOf(importedFormat) }
 
     var displaySavedBytes by remember { mutableStateOf(savedBytes) }
 
@@ -137,7 +138,7 @@ fun PreviewScreen(
 
             val bytes = Util.compressBitmapToBytes(
                 bitmap = bmp,
-                quality = 90,
+                quality = 100,
                 formatStr = selectedFormat,
                 sizeLimitKb = sizeLimitKb
             )
@@ -432,10 +433,6 @@ fun PreviewScreen(
                     Button(
                         onClick = {
                             val bmp = processedBmp
-                            if (bmp == null) {
-                                Toast.makeText(context, "No processed image found to save", Toast.LENGTH_SHORT).show()
-                                return@Button
-                            }
 
                             val sizeLimitKb = if (!viewModel.isAutoCompress && viewModel.sizeLimitInput.isNotBlank()) {
                                 val inputNum = viewModel.sizeLimitInput.toIntOrNull()
@@ -448,9 +445,11 @@ fun PreviewScreen(
                                 Util.saveBitmapToPublicStorage(
                                     context = context,
                                     bitmap = bmp,
-                                    quality = 90,
+                                    quality = 100,
                                     formatStr = selectedFormat,
                                     sizeLimitKb = sizeLimitKb,
+                                    originalUri = originalMeta?.uri,
+                                    originalName = originalMeta?.originalName,
                                 )
                             if (savedUri != null) {
                                 Toast

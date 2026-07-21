@@ -32,4 +32,6 @@ data class ImageMetadata(
     val height: Int,
     val sizeBytes: Long,
     val uri: Uri,
+    val originalName: String? = null,
+    val format: String = "JPG",
 )

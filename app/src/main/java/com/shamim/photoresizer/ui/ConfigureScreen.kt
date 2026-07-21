@@ -414,6 +414,129 @@ fun ConfigureScreen(
                                 }
                             }
 
+                            if (viewModel.selectedPresetSize != "None") {
+                                Text(
+                                    text = "Preset Resolution Mode",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.padding(top = 8.dp, bottom = 8.dp),
+                                )
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = 16.dp)
+                                        .background(
+                                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                            shape = RoundedCornerShape(14.dp),
+                                        ).padding(4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    // Option 1: Maximum Resolution
+                                    val isMaxSelected = viewModel.presetResolutionMode == "Maximum"
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(40.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(
+                                                if (isMaxSelected) {
+                                                    MaterialTheme.colorScheme.primary
+                                                } else {
+                                                    Color.Transparent
+                                                },
+                                            ).clickable {
+                                                viewModel.changePresetResolutionMode("Maximum")
+                                            }
+                                            .padding(horizontal = 4.dp),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Text(
+                                            text = "Maximum Resolution",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isMaxSelected) {
+                                                MaterialTheme.colorScheme.onPrimary
+                                            } else {
+                                                MaterialTheme.colorScheme.onSurfaceVariant
+                                            },
+                                            textAlign = TextAlign.Center
+                                        )
+                                    }
+
+                                    // Option 2: Original Preset Size resolution
+                                    val isOrigSelected = viewModel.presetResolutionMode == "Original"
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(40.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(
+                                                if (isOrigSelected) {
+                                                    MaterialTheme.colorScheme.primary
+                                                } else {
+                                                    Color.Transparent
+                                                },
+                                            ).clickable {
+                                                viewModel.changePresetResolutionMode("Original")
+                                            }
+                                            .padding(horizontal = 4.dp),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Text(
+                                            text = "Original Preset Size",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isOrigSelected) {
+                                                MaterialTheme.colorScheme.onPrimary
+                                            } else {
+                                                MaterialTheme.colorScheme.onSurfaceVariant
+                                            },
+                                            textAlign = TextAlign.Center
+                                        )
+                                    }
+                                }
+
+                                if (viewModel.presetResolutionMode == "Maximum") {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(bottom = 16.dp),
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.Info,
+                                            contentDescription = "Max resolution description icon",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(20.dp),
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "Maximum Resolution retains the full pixel detail of your image. Only the aspect ratio is adjusted to match the preset, so the image quality is never downgraded.",
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                } else {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(bottom = 16.dp),
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.Info,
+                                            contentDescription = "Original resolution description icon",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(20.dp),
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "Original Preset Size rescales and shrinks the image down to match both the exact aspect ratio and dimensions of the preset (e.g., 295 × 354 px).",
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+                            }
+
                             if (viewModel.selectedPresetSize == "Custom preset") {
                                 Text(
                                     text = "Custom Preset Size (Millimeters)",
@@ -479,7 +602,7 @@ fun ConfigureScreen(
                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 verticalArrangement = Arrangement.spacedBy(6.dp),
                             ) {
-                                val aspectPresets = listOf("Original", "1:1", "4:3", "16:9", "9:16", "2:3", "3:2", "21:9")
+                                val aspectPresets = listOf("Original", "Freeform", "1:1", "4:3", "16:9", "9:16", "2:3", "3:2", "21:9", "Custom ratio")
                                 aspectPresets.forEach { preset ->
                                     val isSelected = viewModel.selectedPresetRatio == preset
                                     Box(
@@ -507,6 +630,49 @@ fun ConfigureScreen(
                                             },
                                         )
                                     }
+                                }
+                            }
+
+                            if (viewModel.selectedPresetRatio == "Custom ratio") {
+                                Text(
+                                    text = "Custom Aspect Ratio (Width : Height)",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.padding(bottom = 8.dp),
+                                )
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                ) {
+                                    OutlinedTextField(
+                                        value = viewModel.customRatioWidth,
+                                        onValueChange = { viewModel.updateCustomRatioWidth(it) },
+                                        modifier = Modifier.weight(1f).testTag("custom_ratio_width_field"),
+                                        label = { Text("Width Ratio") },
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(24.dp),
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                        ),
+                                    )
+
+                                    OutlinedTextField(
+                                        value = viewModel.customRatioHeight,
+                                        onValueChange = { viewModel.updateCustomRatioHeight(it) },
+                                        modifier = Modifier.weight(1f).testTag("custom_ratio_height_field"),
+                                        label = { Text("Height Ratio") },
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(24.dp),
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                        ),
+                                    )
                                 }
                             }
                         }

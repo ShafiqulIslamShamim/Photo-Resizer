@@ -13,15 +13,19 @@
 */
 package com.shamim.photoresizer
 
+import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
+import android.provider.MediaStore
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -40,6 +44,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -87,6 +92,11 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+    }
 }
 
 /**
@@ -102,6 +112,24 @@ fun PhotoResizerApp() {
     val loadingState by viewModel.loadingState.collectAsState()
     val settingsManager = remember { SettingsManager.getInstance(context) }
 
+    val activity = context as? ComponentActivity
+    LaunchedEffect(activity?.intent) {
+        val intent = activity?.intent
+        if (intent?.action == Intent.ACTION_SEND && intent.type?.startsWith("image/") == true) {
+            val uri = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                intent.getParcelableExtra(Intent.EXTRA_STREAM)
+            }
+            if (uri != null) {
+                viewModel.setImage(context, uri)
+                // Clear the action so rotation or configuration change doesn't reload it
+                intent.action = null
+            }
+        }
+    }
+
     // Temporary camera image captures Uri tracker
     var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
 
@@ -116,7 +144,7 @@ fun PhotoResizerApp() {
 
     val cameraLauncher =
         rememberLauncherForActivityResult(
-            contract = ActivityResultContracts.TakePicture(),
+            contract = TakePictureWithPermission(),
         ) { success: Boolean ->
             val uri = tempCameraUri
             if (success && uri != null) {
@@ -249,3 +277,38 @@ fun PhotoResizerApp() {
         }
     }
 }
+
+/**
+ * A custom ActivityResultContract for capturing an image from the camera that explicitly
+ * grants temporary read/write URI permission flags and package visibility hooks for custom emulators/devices.
+ */
+class TakePictureWithPermission : ActivityResultContract<Uri, Boolean>() {
+    override fun createIntent(context: Context, input: Uri): Intent {
+        val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+            .putExtra(MediaStore.EXTRA_OUTPUT, input)
+            .addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+
+        try {
+            val resInfoList = context.packageManager.queryIntentActivities(
+                intent,
+                PackageManager.MATCH_DEFAULT_ONLY
+            )
+            for (resolveInfo in resInfoList) {
+                val packageName = resolveInfo.activityInfo.packageName
+                context.grantUriPermission(
+                    packageName,
+                    input,
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return intent
+    }
+
+    override fun parseResult(resultCode: Int, intent: Intent?): Boolean {
+        return resultCode == android.app.Activity.RESULT_OK
+    }
+}
+

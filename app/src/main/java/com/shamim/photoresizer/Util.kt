@@ -171,47 +171,42 @@ object Util {
         var tempBytes: ByteArray
         if (sizeLimitKb != null && sizeLimitKb > 0) {
             val limitBytes = sizeLimitKb * 1024
-            var streamSize = 0
             var finalBytes = ByteArray(0)
 
             if (isLossy) {
-                // Iterative search for quality configuration conforming to KB target
-                var currentQuality = quality
-                do {
+                // Binary search for optimal quality in range [1, 100] to meet file size target
+                var low = 1
+                var high = 100
+                var bestQuality = 1
+                var bestBytes = ByteArray(0)
+
+                while (low <= high) {
+                    val mid = (low + high) / 2
                     val baos = ByteArrayOutputStream()
-                    bitmap.compress(format, currentQuality, baos)
-                    finalBytes = baos.toByteArray()
-                    streamSize = finalBytes.size
-                    currentQuality -= 10
-                } while (streamSize > limitBytes && currentQuality >= 15)
+                    bitmap.compress(format, mid, baos)
+                    val compressed = baos.toByteArray()
+                    if (compressed.size <= limitBytes) {
+                        bestQuality = mid
+                        bestBytes = compressed
+                        low = mid + 1
+                    } else {
+                        high = mid - 1
+                    }
+                }
+
+                if (bestBytes.isEmpty()) {
+                    val baos = ByteArrayOutputStream()
+                    bitmap.compress(format, 1, baos)
+                    bestBytes = baos.toByteArray()
+                }
+                finalBytes = bestBytes
             } else {
                 // Lossless formats (PNG, lossless WEBP): quality has no effect, compress once
                 val baos = ByteArrayOutputStream()
                 bitmap.compress(format, 100, baos)
                 finalBytes = baos.toByteArray()
-                streamSize = finalBytes.size
             }
 
-            // Progressive dimensions downscale if quality reduction alone fails
-            if (streamSize > limitBytes) {
-                var scale = 0.9f
-                var currentBmp: Bitmap? = null
-                while (streamSize > limitBytes && scale > 0.05f) {
-                    val sW = (bitmap.width * scale).toInt().coerceAtLeast(1)
-                    val sH = (bitmap.height * scale).toInt().coerceAtLeast(1)
-                    val nextBmp = Bitmap.createScaledBitmap(bitmap, sW, sH, true)
-                    
-                    val baos = ByteArrayOutputStream()
-                    nextBmp.compress(format, if (isLossy) 70 else 100, baos)
-                    finalBytes = baos.toByteArray()
-                    streamSize = finalBytes.size
-                    
-                    currentBmp?.recycle()
-                    currentBmp = nextBmp
-                    scale -= 0.1f
-                }
-                currentBmp?.recycle()
-            }
             tempBytes = finalBytes
         } else {
             // Auto mode: preserve high quality compression without size reduction
@@ -241,6 +236,8 @@ object Util {
         quality: Int = 90,
         formatStr: String = "JPG",
         sizeLimitKb: Int? = null,
+        originalUri: Uri? = null,
+        originalName: String? = null,
     ): Uri? {
         val ext = formatStr.lowercase()
         val mimeType =
@@ -251,7 +248,14 @@ object Util {
             }
 
         val actualExt = if (ext == "jpeg") "jpg" else ext
-        val name = "Photo-Resizer_" + System.currentTimeMillis() + "." + actualExt
+        val baseName = if (!originalName.isNullOrBlank()) {
+            val dotIndex = originalName.lastIndexOf('.')
+            if (dotIndex != -1) originalName.substring(0, dotIndex) else originalName
+        } else {
+            "Photo-Resizer_" + System.currentTimeMillis()
+        }
+        val name = "$baseName.$actualExt"
+
         val contentValues =
             ContentValues().apply {
                 put(MediaStore.Images.Media.DISPLAY_NAME, name)
@@ -266,10 +270,77 @@ object Util {
         val targetUri =
             resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues) ?: return null
 
+        val tempFile = java.io.File(context.cacheDir, "temp_process_" + System.currentTimeMillis() + "." + actualExt)
         return try {
+            val rawBytes = compressBitmapToBytes(bitmap, quality, formatStr, sizeLimitKb)
+            tempFile.writeBytes(rawBytes)
+
+            // Copy EXIF attributes if originalUri is provided and destination format supports EXIF
+            if (originalUri != null && formatStr.uppercase() != "PNG") {
+                try {
+                    context.contentResolver.openInputStream(originalUri)?.use { inputStream ->
+                        val srcExif = android.media.ExifInterface(inputStream)
+                        val destExif = android.media.ExifInterface(tempFile.absolutePath)
+                        val tags = arrayOf(
+                            android.media.ExifInterface.TAG_MAKE,
+                            android.media.ExifInterface.TAG_MODEL,
+                            android.media.ExifInterface.TAG_F_NUMBER,
+                            android.media.ExifInterface.TAG_DATETIME,
+                            android.media.ExifInterface.TAG_DATETIME_DIGITIZED,
+                            android.media.ExifInterface.TAG_DATETIME_ORIGINAL,
+                            android.media.ExifInterface.TAG_EXPOSURE_TIME,
+                            android.media.ExifInterface.TAG_FLASH,
+                            android.media.ExifInterface.TAG_FOCAL_LENGTH,
+                            android.media.ExifInterface.TAG_GPS_ALTITUDE,
+                            android.media.ExifInterface.TAG_GPS_ALTITUDE_REF,
+                            android.media.ExifInterface.TAG_GPS_DATESTAMP,
+                            android.media.ExifInterface.TAG_GPS_LATITUDE,
+                            android.media.ExifInterface.TAG_GPS_LATITUDE_REF,
+                            android.media.ExifInterface.TAG_GPS_LONGITUDE,
+                            android.media.ExifInterface.TAG_GPS_LONGITUDE_REF,
+                            android.media.ExifInterface.TAG_GPS_PROCESSING_METHOD,
+                            android.media.ExifInterface.TAG_GPS_TIMESTAMP,
+                            android.media.ExifInterface.TAG_ISO_SPEED_RATINGS,
+                            android.media.ExifInterface.TAG_LIGHT_SOURCE,
+                            android.media.ExifInterface.TAG_WHITE_BALANCE,
+                            android.media.ExifInterface.TAG_SUBSEC_TIME,
+                            android.media.ExifInterface.TAG_SUBSEC_TIME_DIGITIZED,
+                            android.media.ExifInterface.TAG_SUBSEC_TIME_ORIGINAL,
+                            android.media.ExifInterface.TAG_OFFSET_TIME,
+                            android.media.ExifInterface.TAG_OFFSET_TIME_DIGITIZED,
+                            android.media.ExifInterface.TAG_OFFSET_TIME_ORIGINAL,
+                            android.media.ExifInterface.TAG_APERTURE_VALUE,
+                            android.media.ExifInterface.TAG_SHUTTER_SPEED_VALUE,
+                            android.media.ExifInterface.TAG_EXPOSURE_PROGRAM,
+                            android.media.ExifInterface.TAG_EXPOSURE_MODE,
+                            android.media.ExifInterface.TAG_DIGITAL_ZOOM_RATIO,
+                            android.media.ExifInterface.TAG_CONTRAST,
+                            android.media.ExifInterface.TAG_SATURATION,
+                            android.media.ExifInterface.TAG_SHARPNESS,
+                            android.media.ExifInterface.TAG_METERING_MODE,
+                            android.media.ExifInterface.TAG_EXIF_VERSION,
+                            "LensMake",
+                            "LensModel",
+                            "LensSpecification",
+                            "Software"
+                        )
+                        for (tag in tags) {
+                            val value = srcExif.getAttribute(tag)
+                            if (value != null) {
+                                destExif.setAttribute(tag, value)
+                            }
+                        }
+                        destExif.saveAttributes()
+                    }
+                } catch (exifEx: Exception) {
+                    exifEx.printStackTrace()
+                }
+            }
+
             resolver.openOutputStream(targetUri)?.use { stream ->
-                val rawBytes = compressBitmapToBytes(bitmap, quality, formatStr, sizeLimitKb)
-                stream.write(rawBytes)
+                tempFile.inputStream().use { input ->
+                    input.copyTo(stream)
+                }
             }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -282,6 +353,10 @@ object Util {
             e.printStackTrace()
             resolver.delete(targetUri, null, null)
             null
+        } finally {
+            if (tempFile.exists()) {
+                tempFile.delete()
+            }
         }
     }
 
@@ -299,12 +374,23 @@ object Util {
     ): ImageMetadata? =
         try {
             var sizeBytes = 0L
+            var originalName: String? = null
             context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-                val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
-                if (sizeIndex != -1 && cursor.moveToFirst()) {
-                    sizeBytes = cursor.getLong(sizeIndex)
+                if (cursor.moveToFirst()) {
+                    val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                    if (sizeIndex != -1) {
+                        sizeBytes = cursor.getLong(sizeIndex)
+                    }
+                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (nameIndex != -1) {
+                        originalName = cursor.getString(nameIndex)
+                    }
                 }
             }
+            if (originalName == null) {
+                originalName = uri.lastPathSegment
+            }
+
             if (sizeBytes <= 0) {
                 context.contentResolver.openInputStream(uri)?.use { stream ->
                     sizeBytes = stream.available().toLong()
@@ -316,12 +402,23 @@ object Util {
                 BitmapFactory.decodeStream(stream, null, options)
             }
 
+            val mimeType = options.outMimeType ?: context.contentResolver.getType(uri)
+            val detectedFormat = when {
+                mimeType?.contains("png", ignoreCase = true) == true -> "PNG"
+                mimeType?.contains("webp", ignoreCase = true) == true -> "WEBP"
+                originalName?.endsWith(".png", ignoreCase = true) == true -> "PNG"
+                originalName?.endsWith(".webp", ignoreCase = true) == true -> "WEBP"
+                else -> "JPG"
+            }
+
             if (options.outWidth > 0 && options.outHeight > 0) {
                 ImageMetadata(
                     width = options.outWidth,
                     height = options.outHeight,
                     sizeBytes = sizeBytes,
                     uri = uri,
+                    originalName = originalName,
+                    format = detectedFormat,
                 )
             } else {
                 null
@@ -377,5 +474,95 @@ object Util {
             e.printStackTrace()
             null
         }
+    }
+
+    /**
+     * Applies fine rotation and 3D perspective to a given Bitmap.
+     */
+    fun applyPerspectiveAndRotation(
+        bitmap: Bitmap,
+        rotationZ: Float,
+        rotationX: Float,
+        rotationY: Float
+    ): Bitmap {
+        if (rotationZ == 0f && rotationX == 0f && rotationY == 0f) return bitmap
+
+        val width = bitmap.width
+        val height = bitmap.height
+
+        val result = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(result)
+
+        val camera = android.graphics.Camera()
+        val matrix = android.graphics.Matrix()
+
+        camera.save()
+        camera.rotateX(-rotationX)
+        camera.rotateY(rotationY)
+        camera.rotateZ(-rotationZ)
+        camera.getMatrix(matrix)
+        camera.restore()
+
+        val centerX = width / 2f
+        val centerY = height / 2f
+        matrix.preTranslate(-centerX, -centerY)
+        matrix.postTranslate(centerX, centerY)
+
+        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG or android.graphics.Paint.FILTER_BITMAP_FLAG)
+        canvas.drawBitmap(bitmap, matrix, paint)
+
+        return result
+    }
+
+    /**
+     * Warps a given Bitmap from a source quadrilateral defined by 4 normalized points (top-left, top-right,
+     * bottom-right, bottom-left) to a rectified destination rectangle.
+     */
+    fun apply4PointPerspectiveWarp(
+        bitmap: Bitmap,
+        perspectivePoints: FloatArray
+    ): Bitmap {
+        val w = bitmap.width.toFloat()
+        val h = bitmap.height.toFloat()
+
+        val tlX = perspectivePoints[0] * w
+        val tlY = perspectivePoints[1] * h
+        val trX = perspectivePoints[2] * w
+        val trY = perspectivePoints[3] * h
+        val brX = perspectivePoints[4] * w
+        val brY = perspectivePoints[5] * h
+        val blX = perspectivePoints[6] * w
+        val blY = perspectivePoints[7] * h
+
+        val topWidth = Math.hypot((trX - tlX).toDouble(), (trY - tlY).toDouble())
+        val bottomWidth = Math.hypot((brX - blX).toDouble(), (brY - blY).toDouble())
+        val leftHeight = Math.hypot((blX - tlX).toDouble(), (blY - tlY).toDouble())
+        val rightHeight = Math.hypot((brX - trX).toDouble(), (brY - trY).toDouble())
+
+        val destWidth = maxOf(topWidth, bottomWidth).toInt().coerceIn(100, 10000)
+        val destHeight = maxOf(leftHeight, rightHeight).toInt().coerceIn(100, 10000)
+
+        val srcPoints = floatArrayOf(
+            tlX, tlY,
+            trX, trY,
+            brX, brY,
+            blX, blY
+        )
+        val dstPoints = floatArrayOf(
+            0f, 0f,
+            destWidth.toFloat(), 0f,
+            destWidth.toFloat(), destHeight.toFloat(),
+            0f, destHeight.toFloat()
+        )
+
+        val matrix = android.graphics.Matrix()
+        matrix.setPolyToPoly(srcPoints, 0, dstPoints, 0, 4)
+
+        val result = Bitmap.createBitmap(destWidth, destHeight, Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(result)
+        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG or android.graphics.Paint.FILTER_BITMAP_FLAG)
+        canvas.drawBitmap(bitmap, matrix, paint)
+
+        return result
     }
 }

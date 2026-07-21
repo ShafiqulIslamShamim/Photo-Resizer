@@ -61,23 +61,50 @@ class ViewModel : androidx.lifecycle.ViewModel() {
     var customMmWidth by mutableStateOf("")
     var customMmHeight by mutableStateOf("")
 
+    // Custom ratio state properties for Custom aspect ratio preset
+    var customRatioWidth by mutableStateOf("")
+    var customRatioHeight by mutableStateOf("")
+
+    var presetResolutionMode by mutableStateOf("Original")
+
+    fun changePresetResolutionMode(mode: String) {
+        presetResolutionMode = mode
+        updatePresetSizeResolution()
+    }
+
     fun updateCustomMmWidth(mmStr: String) {
         customMmWidth = mmStr.filter { it.isDigit() || it == '.' }
-        val mm = customMmWidth.toDoubleOrNull()
-        if (mm != null) {
-            targetWidthInput = Math.round(mm * 300.0 / 25.4).toLong().toString()
-        } else {
-            targetWidthInput = ""
-        }
+        updatePresetSizeResolution()
     }
 
     fun updateCustomMmHeight(mmStr: String) {
         customMmHeight = mmStr.filter { it.isDigit() || it == '.' }
-        val mm = customMmHeight.toDoubleOrNull()
-        if (mm != null) {
-            targetHeightInput = Math.round(mm * 300.0 / 25.4).toLong().toString()
+        updatePresetSizeResolution()
+    }
+
+    fun updateCustomRatioWidth(ratioStr: String) {
+        customRatioWidth = ratioStr.filter { it.isDigit() || it == '.' }
+        recalculateCustomRatio()
+    }
+
+    fun updateCustomRatioHeight(ratioStr: String) {
+        customRatioHeight = ratioStr.filter { it.isDigit() || it == '.' }
+        recalculateCustomRatio()
+    }
+
+    private fun recalculateCustomRatio() {
+        val rw = customRatioWidth.toDoubleOrNull()
+        val rh = customRatioHeight.toDoubleOrNull()
+        val meta = originalMetadata ?: return
+        val currentW = meta.width
+        val currentH = meta.height
+        if (rw != null && rh != null && rw > 0.0 && rh > 0.0) {
+            val targetH = Math.round(currentW * rh / rw).toInt()
+            targetWidthInput = currentW.toString()
+            targetHeightInput = targetH.toString()
         } else {
-            targetHeightInput = ""
+            targetWidthInput = currentW.toString()
+            targetHeightInput = currentH.toString()
         }
     }
 
@@ -104,8 +131,11 @@ class ViewModel : androidx.lifecycle.ViewModel() {
         sizeLimitUnit = "KB"
         selectedPresetRatio = "Original"
         selectedPresetSize = "None"
+        presetResolutionMode = "Original"
         customMmWidth = ""
         customMmHeight = ""
+        customRatioWidth = ""
+        customRatioHeight = ""
         _screenState.value = ScreenState.Welcome
     }
 
@@ -175,6 +205,11 @@ class ViewModel : androidx.lifecycle.ViewModel() {
                 targetHeightInput = currentH.toString()
             }
 
+            "Freeform" -> {
+                targetWidthInput = currentW.toString()
+                targetHeightInput = currentH.toString()
+            }
+
             "1:1" -> {
                 val size = if (currentW < currentH) currentW else currentH
                 targetWidthInput = size.toString()
@@ -216,6 +251,10 @@ class ViewModel : androidx.lifecycle.ViewModel() {
                 targetWidthInput = currentW.toString()
                 targetHeightInput = targetH.toString()
             }
+
+            "Custom ratio" -> {
+                recalculateCustomRatio()
+            }
         }
     }
 
@@ -231,51 +270,54 @@ class ViewModel : androidx.lifecycle.ViewModel() {
         if (presetName == "None") {
             return
         }
-        when (presetName) {
-            "25 × 30 mm" -> {
-                targetWidthInput = "295"
-                targetHeightInput = "354"
-            }
-            "25 × 35 mm" -> {
-                targetWidthInput = "295"
-                targetHeightInput = "413"
-            }
-            "30 × 40 mm" -> {
-                targetWidthInput = "354"
-                targetHeightInput = "472"
-            }
-            "30 × 45 mm" -> {
-                targetWidthInput = "354"
-                targetHeightInput = "531"
-            }
-            "33 × 48 mm" -> {
-                targetWidthInput = "390"
-                targetHeightInput = "567"
-            }
-            "35 × 45 mm" -> {
-                targetWidthInput = "413"
-                targetHeightInput = "531"
-            }
-            "40 × 50 mm" -> {
-                targetWidthInput = "472"
-                targetHeightInput = "591"
-            }
-            "45 × 45 mm" -> {
-                targetWidthInput = "531"
-                targetHeightInput = "531"
-            }
-            "50 × 50 mm" -> {
-                targetWidthInput = "591"
-                targetHeightInput = "591"
-            }
-            "51 × 51 mm" -> {
-                targetWidthInput = "602"
-                targetHeightInput = "602"
-            }
+        updatePresetSizeResolution()
+    }
+
+    fun updatePresetSizeResolution() {
+        val presetName = selectedPresetSize
+        if (presetName == "None") return
+        val meta = originalMetadata ?: return
+        val origW = meta.width
+        val origH = meta.height
+
+        val (presetW, presetH) = when (presetName) {
+            "25 × 30 mm" -> Pair(295, 354)
+            "25 × 35 mm" -> Pair(295, 413)
+            "30 × 40 mm" -> Pair(354, 472)
+            "30 × 45 mm" -> Pair(354, 531)
+            "33 × 48 mm" -> Pair(390, 567)
+            "35 × 45 mm" -> Pair(413, 531)
+            "40 × 50 mm" -> Pair(472, 591)
+            "45 × 45 mm" -> Pair(531, 531)
+            "50 × 50 mm" -> Pair(591, 591)
+            "51 × 51 mm" -> Pair(602, 602)
             "Custom preset" -> {
-                updateCustomMmWidth(customMmWidth)
-                updateCustomMmHeight(customMmHeight)
+                val mmW = customMmWidth.toDoubleOrNull() ?: 1.0
+                val mmH = customMmHeight.toDoubleOrNull() ?: 1.0
+                val pxW = Math.round(mmW * 300.0 / 25.4).toInt()
+                val pxH = Math.round(mmH * 300.0 / 25.4).toInt()
+                Pair(pxW, pxH)
             }
+            else -> Pair(origW, origH)
+        }
+
+        if (presetResolutionMode == "Maximum") {
+            val presetRatio = presetW.toDouble() / presetH.toDouble()
+            val origRatio = origW.toDouble() / origH.toDouble()
+            if (presetRatio > origRatio) {
+                val w = origW
+                val h = Math.round(origW / presetRatio).toInt()
+                targetWidthInput = w.toString()
+                targetHeightInput = h.toString()
+            } else {
+                val h = origH
+                val w = Math.round(origH * presetRatio).toInt()
+                targetWidthInput = w.toString()
+                targetHeightInput = h.toString()
+            }
+        } else {
+            targetWidthInput = presetW.toString()
+            targetHeightInput = presetH.toString()
         }
     }
 
@@ -313,6 +355,8 @@ class ViewModel : androidx.lifecycle.ViewModel() {
                             height = rotated.height,
                             sizeBytes = oldMeta.sizeBytes,
                             uri = oldMeta.uri,
+                            originalName = oldMeta.originalName,
+                            format = oldMeta.format,
                         )
                     originalMetadata = newMeta
 
@@ -345,102 +389,63 @@ class ViewModel : androidx.lifecycle.ViewModel() {
         pixelTop: Int,
         croppedW: Int,
         croppedH: Int,
+        fineRotation: Float = 0f,
+        perspectiveX: Float = 0f,
+        perspectiveY: Float = 0f,
+        perspectivePoints: FloatArray? = null,
     ) {
         val bitmap = originalBitmap ?: return
-        val finalW = targetWidthInput.toIntOrNull() ?: croppedW
-        val finalH = targetHeightInput.toIntOrNull() ?: croppedH
 
         viewModelScope.launch {
             _loadingState.value = true
             try {
                 val processed =
                     withContext(Dispatchers.IO) {
-                        val safeLeft = pixelLeft.coerceIn(0, bitmap.width - 1)
-                        val safeTop = pixelTop.coerceIn(0, bitmap.height - 1)
-                        val safeW = croppedW.coerceAtMost(bitmap.width - safeLeft).coerceAtLeast(1)
-                        val safeH = croppedH.coerceAtMost(bitmap.height - safeTop).coerceAtLeast(1)
+                        val transformedBitmap = if (perspectivePoints != null) {
+                            Util.apply4PointPerspectiveWarp(bitmap, perspectivePoints)
+                        } else {
+                            val safeLeft = pixelLeft.coerceIn(0, bitmap.width - 1)
+                            val safeTop = pixelTop.coerceIn(0, bitmap.height - 1)
+                            val safeW = croppedW.coerceAtMost(bitmap.width - safeLeft).coerceAtLeast(1)
+                            val safeH = croppedH.coerceAtMost(bitmap.height - safeTop).coerceAtLeast(1)
 
-                        val croppedBitmap = Bitmap.createBitmap(bitmap, safeLeft, safeTop, safeW, safeH)
-                        val scaledBitmap = Bitmap.createScaledBitmap(croppedBitmap, finalW, finalH, true)
+                            val croppedBitmap = Bitmap.createBitmap(bitmap, safeLeft, safeTop, safeW, safeH)
 
-                        val compressedBytes: ByteArray
+                            val rotationOrPersp = if (fineRotation != 0f || perspectiveX != 0f || perspectiveY != 0f) {
+                                Util.applyPerspectiveAndRotation(croppedBitmap, fineRotation, perspectiveX, perspectiveY)
+                            } else {
+                                croppedBitmap
+                            }
+                            if (rotationOrPersp != croppedBitmap) {
+                                croppedBitmap.recycle()
+                            }
+                            rotationOrPersp
+                        }
+
+                        val targetW = targetWidthInput.toIntOrNull() ?: transformedBitmap.width
+                        val targetH = targetHeightInput.toIntOrNull() ?: transformedBitmap.height
+
+                        val scaledBitmap = Bitmap.createScaledBitmap(transformedBitmap, targetW, targetH, true)
+
+                        if (transformedBitmap != scaledBitmap) {
+                            transformedBitmap.recycle()
+                        }
+
                         val isCustomMode = !isAutoCompress && sizeLimitInput.isNotBlank()
                         val inputNum = sizeLimitInput.toIntOrNull()
-
-                        if (!isCustomMode || inputNum == null || inputNum <= 0) {
-                            // Auto mode or invalid target value: compress once with high-quality
-                            val baos = ByteArrayOutputStream()
-                            scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 90, baos)
-                            compressedBytes = baos.toByteArray()
+                        val formatStr = originalMetadata?.format ?: "JPG"
+                        val sizeLimitKb = if (isCustomMode && inputNum != null && inputNum > 0) {
+                            if (sizeLimitUnit == "MB") inputNum * 1024 else inputNum
                         } else {
-                            // Custom target size mode matching user's KB/MB constraint
-                            val targetKb = if (sizeLimitUnit == "MB") inputNum * 1024 else inputNum
-                            val targetBytes = targetKb * 1024
-
-                            var quality = 95
-                            var tempBytes = ByteArray(0)
-                            var currentLength = 0
-
-                            do {
-                                val baos = ByteArrayOutputStream()
-                                scaledBitmap.compress(Bitmap.CompressFormat.JPEG, quality, baos)
-                                tempBytes = baos.toByteArray()
-                                currentLength = tempBytes.size
-                                quality -= 8
-                            } while (currentLength > targetBytes && quality >= 15)
-
-                            if (currentLength > targetBytes) {
-                                var scale = 0.9f
-                                var secondaryBitmap = scaledBitmap
-                                while (currentLength > targetBytes && scale > 0.2f) {
-                                    val nw = (finalW * scale).toInt().coerceAtLeast(1)
-                                    val nh = (finalH * scale).toInt().coerceAtLeast(1)
-                                    secondaryBitmap = Bitmap.createScaledBitmap(scaledBitmap, nw, nh, true)
-                                    val baos = ByteArrayOutputStream()
-                                    secondaryBitmap.compress(Bitmap.CompressFormat.JPEG, 70, baos)
-                                    tempBytes = baos.toByteArray()
-                                    currentLength = tempBytes.size
-                                    scale -= 0.1f
-                                }
-                            } else if (currentLength < targetBytes) {
-                                var scale = 1.1f
-                                var lastValidBytes = tempBytes
-                                var lastValidScale = 1.0f
-
-                                while (scale <= 5.0f) {
-                                    val nw = (finalW * scale).toInt().coerceAtLeast(1)
-                                    val nh = (finalH * scale).toInt().coerceAtLeast(1)
-                                    val upscaledBmp = Bitmap.createScaledBitmap(scaledBitmap, nw, nh, true)
-
-                                    val baos = ByteArrayOutputStream()
-                                    upscaledBmp.compress(Bitmap.CompressFormat.JPEG, 95, baos)
-                                    val upscaledBytes = baos.toByteArray()
-
-                                    if (upscaledBytes.size <= targetBytes) {
-                                        lastValidBytes = upscaledBytes
-                                        lastValidScale = scale
-                                        scale += 0.2f
-                                    } else {
-                                        var fineQuality = 90
-                                        var fineBytes = upscaledBytes
-                                        while (fineBytes.size > targetBytes && fineQuality >= 40) {
-                                            val fBaos = ByteArrayOutputStream()
-                                            upscaledBmp.compress(Bitmap.CompressFormat.JPEG, fineQuality, fBaos)
-                                            fineBytes = fBaos.toByteArray()
-                                            fineQuality -= 5
-                                        }
-                                        if (fineBytes.size <= targetBytes) {
-                                            lastValidBytes = fineBytes
-                                            lastValidScale = scale
-                                        }
-                                        break
-                                    }
-                                }
-                                tempBytes = lastValidBytes
-                                currentLength = tempBytes.size
-                            }
-                            compressedBytes = tempBytes
+                            null
                         }
+
+                        val compressedBytes = Util.compressBitmapToBytes(
+                            bitmap = scaledBitmap,
+                            quality = 100,
+                            formatStr = formatStr,
+                            sizeLimitKb = sizeLimitKb
+                        )
 
                         val finalBitmap =
                             BitmapFactory.decodeByteArray(compressedBytes, 0, compressedBytes.size)
